@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- Lock the page scale so the game owns all gestures (req §20, §23): the
+         canvas handles pan/pinch itself; the browser must not page-zoom or
+         double-tap-zoom over it. viewport-fit=cover exposes the safe-area insets
+         the HUD pads against (notches / rounded corners). -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <title>Hamlet Havoc</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%234a5d3a'/%3E%3Crect x='4' y='3' width='8' height='10' rx='1' fill='%23d4af37'/%3E%3C/svg%3E"
+    />
+    <script type="module" crossorigin src="./assets/index-B02MLHIA.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-CssnyXWK.css">
+  </head>
+  <body>
+    <!-- Splash / loading screen (req §21): shown first while sprites preload, -->
+    <!-- then handed off to the Intro screen. Driven by src/main.ts. -->
+    <div id="loading-screen">
+      <div class="intro-card">
+        <h1 class="intro-title">Hamlet Havoc</h1>
+        <div id="loading-progress" class="intro-tagline">Loading…</div>
+      </div>
+    </div>
+
+    <!-- Intro / title screen (req §21, §21.1): the front door. The game boots -->
+    <!-- here (not into an auto-resumed session) and returns here after a loss. -->
+    <!-- Populated by src/ui/intro.ts. -->
+    <div id="intro-screen" hidden></div>
+
+    <!-- The live game. Laid out from boot so the canvas measures correctly, but
+         kept covered by the opaque loading/intro overlays (and not rendered to)
+         until a run starts via New Game / Load Game. -->
+    <div id="game">
+      <canvas id="world"></canvas>
+
+      <!-- HUD overlay (HTML/CSS, drawn above the canvas — see req §2.2) -->
+      <div id="hud">
+        <div id="hud-top">
+          <span id="hud-season">Spring, Year 1</span>
+          <span id="hud-timer">60s</span>
+          <!-- Upcoming end-of-year event (req §16.4, §19.1) -->
+          <span id="hud-event" title="Upcoming end-of-year event">Next: —</span>
+          <span id="hud-paused" hidden>PAUSED</span>
+        </div>
+        <!-- Resource bar + pooled storage (req §19.1); cells filled in by hud.ts -->
+        <div id="hud-resources">
+          <span id="hud-storage" class="res-storage">Storage 0/0</span>
+        </div>
+        <!-- Population + equipment (req §7.4, §19.1) -->
+        <div id="hud-status">
+          <span id="hud-population">Pop W:0/0 · S+C:0/0 (S:0 C:0)</span>
+          <span id="hud-equipment">Sword:0 · Shield:0</span>
+        </div>
+        <!-- Action panel: build buttons + context-sensitive unit/building actions. -->
+        <!-- Populated by controls.ts; pointer-events enabled so buttons are clickable. -->
+        <div id="action-panel"></div>
+        <!-- New/Save/Load now live in the in-game menu (req §21); the HUD keeps a -->
+        <!-- single Menu button (Esc) plus the Help (?) button. -->
+        <div id="hud-controls">
+          <button id="btn-pause" type="button" title="Pause / Resume (Space)">⏸</button>
+          <button id="btn-menu" type="button" title="Menu (Esc)">☰ Menu</button>
+          <button id="btn-help" type="button" title="How to Play (?)">?</button>
+        </div>
+        <!-- Game speed buttons (req §15.1): ¼×–4×; populated by hud.ts. -->
+        <div id="hud-speed" title="Game speed ([ slower / ] faster)"></div>
+        <!-- Town marketplace interface (req §18): shown when a unit reaches town. -->
+        <!-- Populated by ui/town.ts; pointer-events enabled so it's interactive. -->
+        <div id="town-panel" hidden></div>
+        <!-- Hall/storage load-unload interface (T9): shown when a built storage -->
+        <!-- building is selected with a unit on/beside it. Populated by ui/hall.ts. -->
+        <div id="hall-panel" hidden></div>
+        <div id="hud-toast" hidden></div>
+        <!-- Persistent combat alert (TODO.txt T2): bottom-centre banner, click to jump. -->
+        <div id="hud-combat-alert" hidden></div>
+        <!-- Stacked warning popups for sim events (unit lost/demoted, T7). -->
+        <!-- Populated by hud.ts; each entry fades out on its own. -->
+        <div id="hud-notifications"></div>
+        <!-- Selection info panel (req §23): a fixed readout of the current
+             selection (unit/building details). The touch-friendly replacement
+             for the hover tooltips — no pointer hover needed. Filled by hud.ts. -->
+        <div id="selection-info" hidden>
+          <div id="si-title"></div>
+          <div id="si-body"></div>
+        </div>
+        <!-- Unit tooltip: shown on hover; positioned by hud.ts. -->
+        <div id="unit-tooltip" hidden>
+          <div id="tt-title"></div>
+          <div id="tt-hp"></div>
+          <div id="tt-order"></div>
+          <div id="tt-carry" hidden></div>
+        </div>
+        <!-- Building tooltip: shown on hover (T10); positioned by hud.ts. -->
+        <div id="building-tooltip" hidden>
+          <div id="bt-title"></div>
+          <div id="bt-body"></div>
+        </div>
+        <!-- Forest tooltip: shows remaining wood on hover; positioned by hud.ts. -->
+        <div id="forest-tooltip" hidden>
+          <div id="ft-title">Forest</div>
+          <div id="ft-wood"></div>
+        </div>
+        <div id="hud-debug">
+          <span id="hud-tick">tick 0</span>
+        </div>
+      </div>
+
+      <!-- Year-end event modal (req §16.4) + game-over screen (req §21). A full -->
+      <!-- overlay; populated by ui/events.ts when phase is EndOfYearEvent/GameOver. -->
+      <div id="event-overlay" hidden>
+        <div id="event-dialog"></div>
+      </div>
+
+      <!-- How-to-play / help overlay (req §20, §21). Reachable from the Intro -->
+      <!-- screen and during play; populated by ui/help.ts. Esc closes. -->
+      <div id="help-overlay" hidden>
+        <div id="help-dialog"></div>
+      </div>
+
+      <!-- Save-slot picker (req §2.5): the Load Game screen and in-game Save As. -->
+      <!-- Populated by ui/savePicker.ts. Esc closes. -->
+      <div id="save-overlay" hidden>
+        <div id="save-dialog"></div>
+      </div>
+
+      <!-- In-game pause menu (req §21): Resume / Save / Load / New / Help / Quit. -->
+      <!-- Populated by ui/menu.ts. Esc or backdrop click resumes. -->
+      <div id="menu-overlay" hidden>
+        <div id="menu-dialog"></div>
+      </div>
+
+      <!-- Confirmation guard for destructive actions (req §21): New/Load over an -->
+      <!-- active run, building Demolish. Populated by ui/confirm.ts. Esc cancels. -->
+      <div id="confirm-overlay" hidden>
+        <div id="confirm-dialog"></div>
+      </div>
+    </div>
+
+  </body>
+</html>
